@@ -1,0 +1,7 @@
+[project]
+name = "deebee"
+version = "0.1.0"
+description = "A super tiny graph database built on a philosophy of simplicity, ownership, and sugar."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
