@@ -1,5 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
+use std::ops::Index;
+
+// ADD DEEP AND STUFF
 
 #[derive(PartialEq, Clone)]
 pub enum Value {
@@ -30,17 +33,18 @@ impl<T: PartialEq + Clone + 'static> CustomValue for T {
     fn as_any(&self) -> &dyn std::any::Any {self}
 }
 
-#[derive(Clone, Copy, Debug)]
-struct Arrow {
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Arrow {
     label: &'static str,
     reverse_label: &'static str
 }
 
 impl Arrow {
-    pub const CHILD: Self = Self {label: "children", reverse_label: "parents"};
-    pub const PARENT: Self = Self {label: "parents", reverse_label: "children"};
+    pub const CHILDREN: Self = Self {label: "children", reverse_label: "parents"};
+    pub const PARENTS: Self = Self {label: "parents", reverse_label: "children"};
     pub const POINTING: Self = Self {label: "pointing", reverse_label: "receiving"};
     pub const RECEIVING: Self = Self {label: "receiving", reverse_label: "pointing"};
+    pub const LINKED: Self = Self {label: "linked", reverse_label: "linked"};
 
     pub fn new(label: &'static str, reverse_label: &'static str) -> Self {Self {label, reverse_label}}
     pub fn reverse(&self) -> Arrow {Self {label: self.reverse_label, reverse_label: self.label}}
@@ -48,51 +52,71 @@ impl Arrow {
 
 
 
-
+/// The core of Deebee. Stores a data of type Value as well as nodes it links to (bidirectional).
+#[derive(PartialEq, Clone)]
 pub struct Node {
     pub id: Uuid,
     pub data: Value,
-    out_nodes: HashMap<String, Vec<Uuid>>,
-    in_nodes:  HashMap<String, Vec<Uuid>>,
+    linked: HashMap<Arrow, Vec<Uuid>>,
 }
 
 impl Node {
-    pub fn new(data: impl Into<Value>) -> Self {
-        Self::with_id(data, Uuid::new_v4())
-    }
+    /// Creates a new node with arbitrary data that will automatically be converted to Value.
+    pub fn new(data: impl Into<Value>) -> Self {Self::with_id(data, Uuid::new_v4())}
 
+    /// Creates a new node with arbitrary data that will automatically be converted to Value and a custom UUID.
     pub fn with_id(data: impl Into<Value>, id: Uuid) -> Self {
         Node {
             id,
             data: data.into(),
-            out_nodes: HashMap::new(),
-            in_nodes:  HashMap::new(),
+            linked: HashMap::new(),
         }
     }
 
-    fn traverse(&self, _arrow: Arrow) -> impl Iterator<Item = Uuid> {
-        std::iter::once(self.id)
+    /// Sets arbitrary data of the node that will automatically be converted to Value.
+    pub fn set(&mut self, data: impl Into<Value>) {self.data = data.into()}
+
+    /// Gets all nodes of a specific arrow type linked to the node.
+    pub fn get(&self, arrow: Arrow) -> &Vec<Uuid> {
+        static EMPTY: Vec<Uuid> = vec![];
+        self.linked.get(&arrow).unwrap_or(&EMPTY)
     }
 
-    // add
-    // link
-    // point
-    // receive
-    // get
-    // get_parents
-    // get_pointings
-    // get_incomings
+    /// Checks if the current node contains the id of another node
+    pub fn contains(&self, id: Uuid, arrow: Arrow) -> bool {
+        self.linked.get(&arrow).is_some_and(|nodes| nodes.contains(&id))
+    }
+
+    pub fn search(&self, func: impl Fn(&Node) -> bool) -> impl Iterator<Item = &Node> {
+        self.linked.values().filter(move |node| func(node))
+    }
+    
+    //// search ////
     // find
-    // set
-    // connect
-    // search
-    // get_boxes
     // delete
-    // contains
-    // Display, Debug, Index, IndexMut, Iterator, IntoIterator, PartialEq, Clone
+    // Display, Iterator, IntoIterator
+}
+
+impl Index<Arrow> for Node {
+    type Output = Vec<Uuid>;
+    fn index(&self, arrow: Arrow) -> &Self::Output {&self.linked[&arrow]}
 }
 
 
+
+
+////// SUGAR METHODS //////
+// add
+// link
+// point
+// receive
+
+// get_children
+// get_parents
+// get_pointings
+// get_incomings
+
+    
 
 
 
@@ -141,7 +165,34 @@ impl Graph {
     /// Extends graph from the given node map.
     pub fn from_map(&mut self, extension: impl IntoIterator<Item = (Uuid, Node)>) {self.nodes.extend(extension)}
 
-    // delete
+    /// Traverses through the graph starting from a given node, through the arrow type specified. Uses Depth-First Search.
+    pub fn traverse(&self, starting_node: Uuid, arrow: Arrow) -> impl Iterator<Item = Uuid> {
+        let mut stack = vec![starting_node]; // Nodes to visit and track descendants
+        let mut seen: HashSet<Uuid> = HashSet::from([starting_node]);
+
+        std::iter::from_fn(move || {
+            if let Some(node) = stack.pop() {
+                for neighbor in &self.nodes[&node].linked[&arrow] {
+                    if !seen.contains(neighbor) {
+                        seen.insert(*neighbor);
+                        stack.push(*neighbor);
+                    }
+                }
+                Some(node)
+            } else {None}
+        })
+    }
+
+    /// Connects one node on the graph to another using the given arrow type.
+    pub fn connect(&mut self, from_node: Uuid, to_node: Uuid, arrow: Arrow) {
+        if !self.nodes[&from_node].linked[&arrow].contains(&to_node) {
+            self.nodes.get_mut(&from_node).unwrap().linked.get_mut(&arrow).unwrap().push(to_node);
+            self.nodes.get_mut(&to_node).unwrap().linked.get_mut(&arrow.reverse()).unwrap().push(from_node);
+        }     
+    }
+
     // to_json
     // from_json
 }
+
+impl Default for Graph {fn default() -> Self {Self::new()}}
