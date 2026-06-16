@@ -2,7 +2,13 @@
 name = "deebee"
 version = "0.2.0"
 edition = "2024"
+authors = ["pythonkid90"]
+description = "A lightweight graph database"
+repository = "https://github.com/pythonkid90/deebee"
+readme = "README.md"
+license = "MIT"
+keywords = ["graph", "database"]
+categories = ["database"]
 
 [dependencies]
-serde = "1.0.228"
 uuid = { version = "1.23.1", features = ["v4"] }
