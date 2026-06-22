@@ -1,15 +1,26 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}};
 use uuid::Uuid;
 use crate::{Node, Value, Arrow};
+use std::str::FromStr;
 
 pub struct Graph {
-    pub nodes: HashMap<Uuid, Node>,
-    pub arrows: HashSet<Arrow>
+    nodes: HashMap<Uuid, Node>
 }
 
+// // // INITALIZATION // // //
 impl Graph {
     /// Creates a new empty graph.
-    pub fn new() -> Self {Graph {nodes: HashMap::new(), arrows: HashSet::new()}}
+    pub fn new() -> Self {Graph {nodes: HashMap::new()}}
+
+    /// Takes an owned HashMap and constructs a graph from it. Returns Err if references are not bidirectional.
+    pub fn from_map(data: HashMap<Uuid, Node>) -> Result<Graph, String> {Self::try_from(data)}
+
+    pub fn from_json(data: &str) -> Result<Graph, String> {Self::from_str(data)}
+}
+
+// // // UTILIZATION // // //
+impl Graph {
+    const BIDIRECTION_ERR: &str = "Bidirectional invariant malfunctioning. PLEASE report to the GitHub repo.";
 
     /// Gets node by UUID.
     pub fn get(&self, id: Uuid) -> Option<&Node> {self.nodes.get(&id)}
@@ -17,41 +28,47 @@ impl Graph {
     /// Gets mutable node by UUID.
     pub fn get_mut(&mut self, id: Uuid) -> Option<&mut Node> {self.nodes.get_mut(&id)}
 
-    /// Clears entire graph.
-    pub fn clear(&mut self) {self.nodes.clear()}
+    fn get_mut_result(&mut self, id: Uuid) -> Result<&mut Node, &'static str> {
+        self.nodes.get_mut(&id).ok_or("Node ID not in graph.")
+    }
 
-    /// Extends graph from the given node map.
-    pub fn extend(&mut self, extension: impl IntoIterator<Item = (Uuid, Node)>) {self.nodes.extend(extension)}
+    fn get_result(&self, id: Uuid) -> Result<&Node, &'static str> {
+        self.nodes.get(&id).ok_or("Node ID not in graph.")
+    }
+
+    fn get_panic(&self, id: Uuid) -> &Node {
+        self.nodes.get(&id).expect("Node retrieval failed for unknown reason. PLEASE report to the GitHub repo.")
+    }
 
     /// Checks if ID exists in graph.
     pub fn contains(&self, id: Uuid) -> bool {self.nodes.contains_key(&id)}
 
+    /// Returns the number of nodes in the graph.
+    pub fn len(&self) -> usize {self.nodes.len()}
+
+    /// Returns `true` if the graph contains no nodes.
+    pub fn is_empty(&self) -> bool {self.nodes.is_empty()}
+
     /// Returns an iterator through all the nodes of the graph.
     pub fn iter(&self) -> impl Iterator<Item = &Node> {self.nodes.values()}
 
-    /// Returns map of all nodes in the graph.
-    pub fn to_map(&self) -> &HashMap<Uuid, Node> {&self.nodes}
-    
-    /// Returns JSON-like String of all nodes in the graph. 
-    pub fn to_json(&self) -> String {
-        let entries: Vec<String> = self
-            .nodes
-            .iter()
-            .map(|(key, node)| format!("  \"{key}\": {{\"data\": {}, \"linked\": {:?}}}", &node.data.serialize(), node.linked))
-            .collect();
+    /// Traverses through the graph starting from a given node, through all arrow types. Uses Depth-First Search.
+    pub fn traverse(&self, starting_id: Uuid) -> impl Iterator<Item = Uuid> {
+        let mut stack = vec![starting_id]; // Nodes to visit and track descendants
+        let mut seen: HashSet<Uuid> = HashSet::from([starting_id]);
 
-        format!("{{\n{}\n}}", entries.join(",\n"))
+        std::iter::from_fn(move || {
+            let node = self.get_panic(stack.pop()?);
+            // if let Some(neighbors) = node.linked.get(&arrow) {
+                for (_, id) in node {
+                    if seen.insert(*id) {
+                        stack.push(*id);
+                    }
+                }
+            // }
+            Some(node.id)
+        })
     }
-
-    /// Inserts a new node to the graph.
-    pub fn add(&mut self, data: impl Into<Value>) -> &Node {
-        let node = Node::new(data);
-        let id = node.id;
-        self.nodes.insert(id, node);
-        self.nodes.get(&id).expect("Node insertion failed for unknown reason.")
-    }
-
-    pub fn insert(&mut self, id: Uuid) 
 
     /// Returns an iterator of all nodes where the value matches the Value given.
     pub fn find(&self, data: impl Into<Value>) -> impl Iterator<Item = &Node> {
@@ -59,72 +76,114 @@ impl Graph {
         self.nodes.values().filter(move |node| node.data == data)
     }
 
-    /// Connects one node on the graph to another using the given arrow type.
-    pub fn connect(&mut self, from_id: Uuid, to_id: Uuid, arrow: Arrow) -> Result<(), &'static str> {
-        let from_node = self.get_with_result(&from_id)?.linked.entry(arrow).or_default();
-        if !from_node.contains(&to_id) {
-            from_node.insert(to_id);
-            self.get_with_result(&to_id)?.linked.entry(arrow.reverse()).or_default().insert(from_id);
-        }
-        Ok(())
+    /// Returns an iterator of all neighbors of the node given where the value matches the Value given. Returns None if ID is not in graph.
+    pub fn find_neighbors(&self, id: Uuid, data: impl Into<Value>) -> Option<impl Iterator<Item = (&Arrow, &Uuid)>> {
+        let data = data.into();
+        Some(self.nodes.get(&id)?.iter().filter(move |(_, id)| self.get_panic(**id).data == data))
     }
 
-    fn get_with_result(&mut self, id: &Uuid) -> Result<&mut Node, &'static str> {
-        self.nodes.get_mut(id).ok_or("Node ID not in graph.")
+    /// Returns an iterator of all descendants of the node given where the value matches the Value given. Returns None if ID is not in graph.:
+   pub fn find_tree(&self, id: Uuid, data: impl Into<Value>) -> Option<impl Iterator<Item = Uuid>> {
+        let data = data.into();
+        Some(self.traverse(id).filter(move |id| self.get_panic(*id).data == data))
+    }
+}
+
+// // // MODIFICATION // // //
+impl Graph {
+    /// Inserts a new node to the graph.
+    pub fn add(&mut self, data: impl Into<Value>) -> &Node {
+        let node = Node::new(data);
+        let id = node.id;
+        self.nodes.insert(id, node);
+        self.get_panic(id)
+    }
+
+    /// Inserts an already initialized node into the Graph. Unlike other methods, insert takes a full Node rather than a Uuid.
+    pub fn insert(&mut self, node: Node) -> &Node {
+        let id = node.id;
+        self.nodes.insert(id, node);
+        self.get_panic(id)
+    }
+
+    /// Extends graph from the given node map.
+    pub fn extend(&mut self, extension: impl IntoIterator<Item = (Uuid, Node)>) {self.nodes.extend(extension)}
+
+
+    /// Connects one node on the graph to another using the given arrow type.
+    pub fn connect(&mut self, from_id: Uuid, to_id: Uuid, arrow: Arrow) -> Result<(), &'static str> {
+        let from_node = self.get_mut_result(from_id)?.linked.entry(arrow).or_default();
+        if !from_node.contains(&to_id) {
+            from_node.insert(to_id);
+            self.get_mut_result(to_id)?.linked.entry(arrow.reverse()).or_default().insert(from_id);
+        }
+        Ok(())
     }
 
     /// Disconnects one node on the graph from another with the given arrow type.
     pub fn disconnect(&mut self, from_id: Uuid, to_id: Uuid, arrow: Arrow) -> Result<(), &'static str> {
-        if let Some(from_node) = self.get_with_result(&from_id)?.linked.get_mut(&arrow) && from_node.contains(&to_id) {
+        if let Some(from_node) = self.get_mut_result(from_id)?.linked.get_mut(&arrow) && from_node.contains(&to_id) {
             from_node.remove(&to_id);
-            self.get_with_result(&to_id)?.linked.get_mut(&arrow.reverse())
-            .expect("CRITICAL: Bidirectional connect malfunctioning. PLEASE report to the GitHub repo.").remove(&from_id);
+            self.get_mut_result(to_id)?.linked.get_mut(&arrow.reverse())
+            .expect(Self::BIDIRECTION_ERR).remove(&from_id);
         }
         Ok(())
     }
 
-    /// Traverses through the graph starting from a given node, through the arrow type specified. Uses Depth-First Search.
-    pub fn traverse(&self, starting_id: Uuid, arrow: Arrow) -> impl Iterator<Item = Uuid> {
-        let mut stack = vec![starting_id]; // Nodes to visit and track descendants
-        let mut seen: HashSet<Uuid> = HashSet::from([starting_id]);
 
-        std::iter::from_fn(move || {
-            let node_id = stack.pop()?;
-            if let Some(neighbors) = self.get(node_id).and_then(|node| node.linked.get(&arrow)) {
-                for neighbor in neighbors.iter() {
-                    if seen.insert(*neighbor) {
-                        stack.push(*neighbor);
-                    }
-                }
-            }
-            Some(node_id)
-        })
-    }
+    /// Clears entire graph.
+    pub fn clear(&mut self) {self.nodes.clear()}
 
     /// Deletes the node ID from the graph, deleting all direct connections without deleting any connected nodes.
-    pub fn remove(&self, id: Uuid) -> Result<(), &'static str> {
-        let node = &self.nodes.get(&id).ok_or("Node ID not in graph.")?;
-
-        for neighbor in node.iter() {
-            self.nodes.get(neighbor.1).ok_or("Neighbor ID not in graph.")?;
+    pub fn remove(&mut self, id: Uuid) -> Result<(), &'static str> {
+        for neighbor in self.get_result(id)?.iter().map(|neighbor| (*neighbor.0, *neighbor.1)).collect::<Vec<(Arrow, Uuid)>>() {
+            let neighbor = self.nodes.get_mut(&neighbor.1).expect(Self::BIDIRECTION_ERR);
+            for neighbor_linked in neighbor.linked.values_mut() {
+                neighbor_linked.remove(&id);
+            }
         }
-
+        self.nodes.remove(&id);
 
         Ok(())
     }
+}
 
-    /// Finds all neighbors (direct links) of any given node ID in the graph 
-    // pub fn find_neighbors(_node: Uuid, data) -> Vec<Uuid> {todo!()} TODO
 
-    pub fn find_tree(id: Uuid) -> Vec<Uuid> {todo!()}
+// // // EXPORTATION // // //
+impl Graph {
+    /// Returns map of all nodes in the graph.
+    pub fn to_map(&self) -> &HashMap<Uuid, Node> {&self.nodes}
+
+    /// Returns JSON-like String of all nodes in the graph.
+    pub fn to_json(&self) -> String {
+        let nodes = self.nodes.iter().map(|(id, node)| {
+
+            let linked = node.linked.iter().map(|(arrow, ids)| {
+                format!(
+                    r#"{{"label": "{}", "reverse": "{}", "neighbors": [{}]}}"#, 
+                    arrow.label, 
+                    arrow.reverse_label,
+                    ids.iter().map(|id| format!("\"{}\"", id.to_string())).collect::<Vec<String>>().join(", ")
+                )
+            }).collect::<Vec<String>>().join(",\n            ");
+
+            format!(
+                 "    \"{id}\": {{\
+                \n        \"data\": {},\
+                \n        \"linked\": [\
+                \n            {linked}\
+                \n        ]\
+                \n    }}",
+                node.data.serialize()
+            )
+
+        }).collect::<Vec<String>>().join(",\n");
+
+        format!("{{\n{}\n}}", nodes)
+    }
 }
 
 impl Default for Graph {fn default() -> Self {Self::new()}}
-
-// impl From<HashMap<Uuid, Node>> for Graph {fn from(data: HashMap<Uuid, Node>) -> Self {Graph {nodes: data}}} enforce bidirectin
-
-// TODO: Use parse to get data from JSON string.
-
 
 impl std::ops::Index<Uuid> for Graph {
     type Output = Node;
@@ -140,4 +199,190 @@ impl<'a> IntoIterator for &'a Graph {
     type IntoIter = std::collections::hash_map::Values<'a, Uuid, Node>;
 
     fn into_iter(self) -> Self::IntoIter {self.nodes.values()}
+}
+
+impl std::str::FromStr for Graph {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        static DEFAULT_VEC: Value = Value::List(vec![]);
+        let string = s.strip_prefix('{').and_then(|s| s.strip_suffix('}')).ok_or("JSON not an object at top-level.")?;
+
+        let mut parsed: HashMap<Uuid, Node> = HashMap::new();
+        for (id, node) in Value::parse_collection(string)?.into_iter() {
+            let id = id.parse::<Uuid>().map_err(|_| "Invalid UUID format.")?;
+
+            let Value::Map(raw_node) = node else {
+                return Err(format!("Node {id} data is not a JSON object (aka dictionary/HashMap)."));
+            };
+
+            let data = raw_node.get("data").cloned().ok_or(format!("{id} does not have data."))?;
+            let linked_nodes = raw_node.get("linked").cloned().unwrap_or(Value::List(vec![]));
+            let Value::List(linked_nodes) = linked_nodes else {
+                return Err(format!("Node {id}'s linked nodes is not an array."));
+            };
+
+            let mut linked: HashMap<Arrow, HashSet<Uuid>> = HashMap::new();
+
+            for arrow in linked_nodes {
+                let Value::Map(arrow) = arrow else {
+                    return Err(format!("One of node {id}'s links is not a map."));
+                };
+
+                let label = arrow.get("label").cloned().ok_or(format!("Node {id}'s linked nodes does not have a label."))?;
+                let Value::Text(label) = label else {
+                    return Err(format!("One of node {id}'s arrow labels is not text."));
+                };
+
+                let reverse = arrow.get("reverse").cloned().ok_or(format!("Node {id}'s linked nodes does not have a reverse label."))?;
+                let Value::Text(reverse) = reverse else {
+                    return Err(format!("One of node {id}'s arrow reverse labels is not text."));
+                };
+
+                let neighbors = arrow.get("neighbors").unwrap_or(&DEFAULT_VEC);
+                let Value::List(neighbors) = neighbors else {
+                    return Err(format!("Node {id}'s linked nodes is not an array."));
+                };
+
+                let key = Arrow::new(Box::leak(label.into_boxed_str()), Box::leak(reverse.into_boxed_str()));
+                let neighbor_set = neighbors.iter()
+                    .filter_map(|n| if let Value::Text(s) = n { s.parse::<Uuid>().ok() } else { None })
+                    .collect::<HashSet<Uuid>>();
+                linked.insert(key, neighbor_set);
+            }
+
+            parsed.insert(id, Node {id, data, linked});
+
+            
+            
+        };
+
+        Ok(Self::try_from(parsed)?)
+
+    }
+}
+
+impl TryFrom<HashMap<Uuid, Node>> for Graph {
+    type Error = String;
+
+    fn try_from(value: HashMap<Uuid, Node>) -> Result<Self, Self::Error> {
+        let mut seen: HashSet<(Uuid, Uuid, Arrow)> = HashSet::new();
+        
+        for (id, node) in &value {
+            for (arrow, linked) in node.iter() {
+                if seen.contains(&(*id, *linked, *arrow)) {continue}
+
+                let linked_node = value.get(linked).ok_or_else(|| format!("Linked ID {linked} not in graph."))?;
+
+                if !linked_node.linked.get(&arrow.reverse()).is_some_and(|nodes| nodes.contains(&id)) {
+                    return Err(format!("Bidirectionality of arrows not enforced: {id} links with {} (reverse {}) to {linked}, \
+                    but {linked} does not link to {id} through {}", arrow.label, arrow.reverse_label, arrow.reverse_label));
+                }
+                seen.insert((*linked, *id, arrow.reverse()));
+                
+            }
+        }
+        Ok(Graph {nodes: value})
+    }
+    
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_graph_initialization() {
+        let graph = Graph::new();
+        assert!(graph.is_empty());
+        assert_eq!(graph.len(), 0);
+    }
+
+    #[test]
+    fn test_node_addition_and_removal() {
+        let mut graph = Graph::new();
+        
+        let node_id = graph.add("First Node").id;
+        assert_eq!(graph.len(), 1);
+        assert!(graph.contains(node_id));
+        
+        graph.remove(node_id).unwrap();
+        assert!(graph.is_empty());
+        assert!(!graph.contains(node_id));
+    }
+
+    #[test]
+    fn test_bidirectional_connections() {
+        let mut graph = Graph::new();
+        let n1 = graph.add("Node 1").id;
+        let n2 = graph.add("Node 2").id;
+
+        // Connect n1 -> n2 via CHILDREN
+        graph.connect(n1, n2, Arrow::CHILDREN).unwrap();
+
+        // Verify n1 points to n2
+        assert!(graph.get(n1).unwrap().contains(n2, Arrow::CHILDREN));
+        // Verify n2 reverse-points to n1
+        assert!(graph.get(n2).unwrap().contains(n1, Arrow::PARENTS));
+
+        // Disconnect
+        graph.disconnect(n1, n2, Arrow::CHILDREN).unwrap();
+        assert!(!graph.get(n1).unwrap().contains(n2, Arrow::CHILDREN));
+        assert!(!graph.get(n2).unwrap().contains(n1, Arrow::PARENTS));
+    }
+
+    #[test]
+    fn test_graph_traversal() {
+        let mut graph = Graph::new();
+        let n1 = graph.add(1).id;
+        let n2 = graph.add(2).id;
+        let n3 = graph.add(3).id;
+        let n4 = graph.add(4).id;
+
+        // Build tree: n1 -> n2, n1 -> n3, n2 -> n4
+        graph.connect(n1, n2, Arrow::POINTING).unwrap();
+        graph.connect(n1, n3, Arrow::POINTING).unwrap();
+        graph.connect(n2, n4, Arrow::POINTING).unwrap();
+
+        let traversed: HashSet<Uuid> = graph.traverse(n1).collect();
+        
+        assert_eq!(traversed.len(), 4);
+        assert!(traversed.contains(&n1));
+        assert!(traversed.contains(&n2));
+        assert!(traversed.contains(&n3));
+        assert!(traversed.contains(&n4));
+    }
+
+    #[test]
+    fn test_find_mechanics() {
+        let mut graph = Graph::new();
+        let target_val = "target";
+        
+        let n1 = graph.add(target_val).id;
+        let n2 = graph.add("ignore").id;
+        let n3 = graph.add(target_val).id;
+
+        let found: Vec<&Node> = graph.find(target_val).collect();
+        assert_eq!(found.len(), 2);
+        assert!(found.iter().any(|node| node.id == n1));
+        assert!(found.iter().any(|node| node.id == n3));
+        assert!(!found.iter().any(|node| node.id == n2));
+    }
+
+    #[test]
+    fn test_json_serialization_roundtrip() {
+        let mut graph = Graph::new();
+        let n1 = graph.add("Alice").id;
+        let n2 = graph.add("Bob").id;
+        graph.connect(n1, n2, Arrow::LINKED).unwrap();
+
+        let json_str = graph.to_json();
+        
+        let new_graph = Graph::from_json(&json_str).expect("Failed to parse generated JSON");
+        
+        assert_eq!(new_graph.len(), 2);
+        assert!(new_graph.contains(n1));
+        assert!(new_graph.contains(n2));
+        assert!(new_graph.get(n1).unwrap().contains(n2, Arrow::LINKED));
+    }
 }

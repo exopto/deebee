@@ -1,17 +1,51 @@
-# Deebee
-A super tiny graph database built on a philosophy of simplicity, flexibility, and sugar. It is written in Rust for speed, stability, and idiomatic design, although the API is streamlined greatly for use in other languages, such as Python. Deebee does not have a query language by design, rather the progamming language itself filling that gap with each method made to read like standard English. It is written in X lines of easy-to-understand code (for "clean design", AKA so that I don't pass out with proc macros before I even finish the Book).
+# Deebee: Modeling Relationships with Swag
+A super tiny graph database built on a philosophy of simplicity, flexibility, and sugar. It is written in Rust for speed, stability, and idiomatic design, although the API is streamlined greatly for use in other languages, such as Python. Deebee does not have a query language by design, rather the programming language itself fills that gap with each method made to read like standard English. It is written in 598 lines of easy-to-understand code (for "clean design", AKA so that I don't pass out with proc macros before I even finish the Book), including whitespace but excluding tests, and about 250 of that is just serialization and deserialization. Built with good principles in mind, and should not ever panic unless something is really really wrong, and if so, please report to the repo no matter what, even if you've never written a GitHub issue ever before.
 
-Deebee consists of only four primitives: the Graph, storing nodes, the Node, storing values and connecting to other nodes, the Arrow, the connection to the other nodes, and the Value, dynamic data stored by the Node.
+Deebee consists of only four primitives: the Graph, storing nodes, the Node, storing values and connecting to other nodes, the Arrow, the connection to the other nodes, and the Value, dynamic data stored by the Node. Each primitive only knows about the other primitives lower on the hierarchy than it; e.g., the Graph knows about the Node, Arrow, and Value, being at the very top, while the Arrow knows only about the Node and Value, being on the same level as the Node and above the Value.
 
-[Repo](https://github.com/pythonkid90/deebee) | [Crate](https://crates.io/crates/deebee) | [Docs](https://docs.rs/deebee) | [Blog](https://dev.to/rusty_pythonista)
+You are reading the documentation and README for Deebee v0.2.0.
+
+[Repo](https://github.com/exopto/deebee) | [Crate](https://crates.io/crates/deebee) | [Docs](https://docs.rs/deebee) | [Blog](https://dev.to/exopto)
+
 ## Installation
+For now, Deebee only exists as a Rust crate (while v0.1.0 was written in Python, it has many known design issues and code smells), so the easiest way to get Deebee is to run `cargo add deebee` in your shell while inside your crate root, assuming you have Cargo and Rust installed of course. Troubleshooting on how to install Rust is outside the scope of this document and left as an exercise to the reader.
 
+```shell
+cargo add deebee
+```
 
 ## Examples
-```rust
+This is a crude example to set the stage, and does not showcase anywhere near all of Deebee's features. More comprehensive examples and documentation are coming soon, but for now, you can take a look at tests in the `tests` directory or `src/lib.rs`, although please note that all tests are AI-generated and not thoroughly reviewed. For more information about AI usage, see the disclosure at the bottom of this document.
 
+```rust
+use deebee::{Graph, Node, Arrow}; // For nearly all use cases, this is all you will need!
+
+fn main() {
+    let mut graph = Graph::new();
+
+    // Creating a new node. Data is automatically converted to Value and can be any of the following types which implement Into<Value>:
+    // (), bool, i64, u32. i32, isize, f64, f32, &str, String, Vec<Into<Value>>, or HashMap<String, Into<Value>>
+    let a = Node::new("data");
+
+    let a_id = graph.insert(a).id; // Inserts `a` into the graph. Returns a reference.
+
+    let b_id = graph.add(vec!["Magic", "From", "Trait", "Impls"]).id; // If you're lazy.
+
+    // Arrow offers 5 connection constants by default: `children` and its reverse `parents`, `receiving` and its reverse `pointing`, and `linked`, which goes both ways.
+    graph.connect(a_id, b_id, Arrow::CHILDREN); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
+    
+}
 ```
 
 ## Roadmap
 - Clean API code further for idiomaticity and remove usage of recursion
+- Add Serde as an optional feature for performance while keeping crude default serializers (although these serializers will be less crude once I write to a buffer instead).
+- Possibly add more helper methods such as allowing easier operation and iteration through nodes directly rather than IDs, allowing for a more consistent iteration API, such as a `traverse_ids`, `traverse_arrows`, `neighbor_nodes`, etc.
+- Write docs for the internal modules and overhaul the function-level doc comments to include more examples and descriptions of behavior.
 - Create a Python wrapper using PyO3 and publish to PyPI
+- Create a JS wrapper using `wasm-pack` and publish to NPM
+- Rewrite deserialization to be less clunky
+- Optimize code further, avoiding unnecessary heap allocations and introducing `unsafe` if needed.
+
+## Disclosure
+While AI was used in the development of Deebee for work such as code formatting, bugfixing, and testing, all design decisions were made by a real human and any sections of the code generated by AI have been thoroughly reviewed and understood (except for tests, which are considered disposable and partially regenerated each release anyways). This document itself is completely human-generated (unless you count spellcheck). Please clap.

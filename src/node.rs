@@ -8,12 +8,12 @@ use crate::Value;
 /// A thin wrapper type, connecting nodes bidirectionally with a label and acting as the key to access node neighbors.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Arrow {
-    label: &'static str,
-    reverse_label: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) reverse_label: &'static str,
 }
 
 impl Arrow {
-    pub const CHILDREN: Self = Self {label: "children", reverse_label: "parents",};
+    pub const CHILDREN: Self = Self {label: "children", reverse_label: "parents"};
     pub const PARENTS: Self = Self {label: "parents", reverse_label: "children"};
     pub const POINTING: Self = Self {label: "pointing", reverse_label: "receiving"};
     pub const RECEIVING: Self = Self {label: "receiving", reverse_label: "pointing"};
@@ -71,7 +71,7 @@ impl Node {
     /// Returns the number of linked elements to the node.
     pub fn len(&self) -> usize {self.linked.values().map(|ids| ids.len()).sum()}
 
-    /// Check if there are any linked nodes.
+    /// Returns `true` if the node has no neighbors.
     pub fn is_empty(&self) -> bool {self.linked.is_empty()}
 }
 
@@ -94,5 +94,44 @@ impl<'a> IntoIterator for &'a Node {
 
     fn into_iter(self) -> Self::IntoIter {
         Box::new(self.linked.iter().flat_map(|(arrow, id_list)| id_list.iter().map(move |id| (arrow, id))))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_arrow_reverse() {
+        let custom_arrow = Arrow::new("likes", "liked_by");
+        let reversed = custom_arrow.reverse();
+        
+        assert_eq!(reversed.label, "liked_by");
+        assert_eq!(reversed.reverse_label, "likes");
+        assert_eq!(reversed.reverse(), custom_arrow);
+        
+        // Test built-in arrows
+        assert_eq!(Arrow::CHILDREN.reverse(), Arrow::PARENTS);
+        assert_eq!(Arrow::POINTING.reverse(), Arrow::RECEIVING);
+    }
+
+    #[test]
+    fn test_node_creation() {
+        let node = Node::new("test data");
+        assert_eq!(node.data, Value::Text("test data".to_string()));
+        assert!(node.is_empty());
+        assert_eq!(node.len(), 0);
+    }
+
+    #[test]
+    fn test_node_with_id_and_mutation() {
+        let id = Uuid::new_v4();
+        let mut node = Node::with_id(42, id);
+        
+        assert_eq!(node.id, id);
+        assert_eq!(node.data, Value::Int(42));
+        
+        node.set(true);
+        assert_eq!(node.data, Value::Bool(true));
     }
 }
