@@ -53,7 +53,7 @@ impl Value {
         }
     }
 
-    fn escape(data: &str) -> String {
+    pub(crate) fn escape(data: &str) -> String {
         let mut data_string = String::with_capacity(data.len() + 2);
         data_string.push('"');
 
@@ -106,7 +106,7 @@ impl Value {
 
     }
 
-    fn unescape(data: &str) -> Result<String, &'static str> {
+    pub(crate) fn unescape(data: &str) -> Result<String, &'static str> {
         let mut data_string = String::with_capacity(data.len());
 
         let mut char_iter = data.chars();
@@ -198,64 +198,5 @@ impl fmt::Display for Value {
             Value::List(data) => write!(f, "{data:?}"),
             Value::Map(data) => write!(f, "{data:?}"),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_value_from_conversions() {
-        assert_eq!(Value::from(()), Value::Null);
-        assert_eq!(Value::from(true), Value::Bool(true));
-        assert_eq!(Value::from(42), Value::Int(42));
-        assert_eq!(Value::from(3.14), Value::Float(3.14));
-        assert_eq!(Value::from("hello"), Value::Text("hello".to_string()));
-        
-        let vec_val: Value = vec![1, 2, 3].into();
-        assert_eq!(vec_val, Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]));
-    }
-
-    #[test]
-    fn test_serialization_primitives() {
-        assert_eq!(Value::Null.serialize(), "null");
-        assert_eq!(Value::Bool(true).serialize(), "true");
-        assert_eq!(Value::Int(-100).serialize(), "-100");
-        assert_eq!(Value::Float(0.5).serialize(), "0.5");
-        assert_eq!(Value::Float(f64::NAN).serialize(), "null");
-    }
-
-    #[test]
-    fn test_escaping_and_unescaping() {
-        let original = "Line1\nLine2\t\"Quotes\"\\Slash";
-        let escaped = Value::escape(original);
-        assert_eq!(escaped, r#""Line1\nLine2\t\"Quotes\"\\Slash""#);
-        
-        // Strip the outer quotes for unescape testing as `deserialize` handles the outer quotes
-        let unescaped = Value::unescape(&escaped[1..escaped.len()-1]).unwrap();
-        assert_eq!(unescaped, original);
-    }
-
-    #[test]
-    fn test_deserialization_success() {
-        assert_eq!(Value::deserialize("null").unwrap(), Value::Null);
-        assert_eq!(Value::deserialize("false").unwrap(), Value::Bool(false));
-        assert_eq!(Value::deserialize("12345").unwrap(), Value::Int(12345));
-        assert_eq!(Value::deserialize("12.34").unwrap(), Value::Float(12.34));
-        assert_eq!(Value::deserialize(r#""hello""#).unwrap(), Value::Text("hello".to_string()));
-    }
-
-    #[test]
-    fn test_roundtrip_complex_structures() {
-        let mut map = HashMap::new();
-        map.insert("key1".to_string(), Value::Text("value1".to_string()));
-        map.insert("key2".to_string(), Value::List(vec![Value::Int(1), Value::Null]));
-        
-        let original_val = Value::Map(map);
-        let serialized = original_val.serialize();
-        let deserialized = Value::deserialize(&serialized).unwrap();
-        
-        assert_eq!(original_val, deserialized);
     }
 }

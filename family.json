@@ -1,0 +1,21 @@
+{
+    "dbe591d6-01ae-416a-b7b2-bb24a93584eb": {
+        "data": "Bob",
+        "linked": [
+            {"label": "parents", "reverse": "children", "neighbors": ["d8246255-0cad-4379-b64e-10b29e9738b1"]}
+        ]
+    },
+    "75951dba-6882-44a2-ba2c-d7f6373a8501": {
+        "data": "Grandpa Joe",
+        "linked": [
+            {"label": "children", "reverse": "parents", "neighbors": ["d8246255-0cad-4379-b64e-10b29e9738b1"]}
+        ]
+    },
+    "d8246255-0cad-4379-b64e-10b29e9738b1": {
+        "data": "Dad",
+        "linked": [
+            {"label": "parents", "reverse": "children", "neighbors": ["75951dba-6882-44a2-ba2c-d7f6373a8501"]},
+            {"label": "children", "reverse": "parents", "neighbors": ["dbe591d6-01ae-416a-b7b2-bb24a93584eb"]}
+        ]
+    }
+}

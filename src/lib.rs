@@ -8,3 +8,5 @@ pub use node::{Node, Arrow};
 
 pub mod graph;
 pub use graph::Graph;
+
+#[cfg(test)] mod tests;

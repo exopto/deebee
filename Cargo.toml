@@ -1,14 +1,15 @@
 [package]
 name = "deebee"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
-authors = ["pythonkid90"]
-description = "A lightweight graph database"
-repository = "https://github.com/pythonkid90/deebee"
+authors = ["exopto"]
+description = "A lightweight graph database built on a philosophy of simplicity, flexibility, and sugar."
+repository = "https://github.com/exopto/deebee"
 readme = "README.md"
 license = "MIT"
 keywords = ["graph", "database"]
-categories = ["database"]
+categories = ["database-implementations", "data-structures"]
+rust-version = "1.88"
 
 [dependencies]
 uuid = { version = "1.23.1", features = ["v4"] }

@@ -22,14 +22,14 @@ fn test_social_network_scenario() {
     let charlie_id = db.add("Charlie (Minimal Profile)").id;
 
     // 3. Form connections
-    db.connect(alice_id, bob_id, follows).unwrap();
-    db.connect(bob_id, charlie_id, follows).unwrap();
+    db.connect(alice_id, bob_id, &follows).unwrap();
+    db.connect(bob_id, charlie_id, &follows).unwrap();
 
     // 4. Verify invariants through the public API
     assert_eq!(db.len(), 3);
     
     let alice_node = db.get(alice_id).unwrap();
-    assert!(alice_node.contains(bob_id, follows));
+    assert!(alice_node.contains(bob_id, follows.clone()));
     
     // Check that Bob was "followed_by" Alice implicitly
     let bob_node = db.get(bob_id).unwrap();

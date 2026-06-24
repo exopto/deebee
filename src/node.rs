@@ -1,29 +1,34 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
-use uuid::Uuid;
 use std::fmt;
+use std::borrow::Cow;
 
 use crate::Value;
+use uuid::Uuid;
 
 /// A thin wrapper type, connecting nodes bidirectionally with a label and acting as the key to access node neighbors.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Arrow {
-    pub(crate) label: &'static str,
-    pub(crate) reverse_label: &'static str,
+    pub(crate) label: Cow<'static, str>,
+    pub(crate) reverse_label: Cow<'static, str>,
 }
 
 impl Arrow {
-    pub const CHILDREN: Self = Self {label: "children", reverse_label: "parents"};
-    pub const PARENTS: Self = Self {label: "parents", reverse_label: "children"};
-    pub const POINTING: Self = Self {label: "pointing", reverse_label: "receiving"};
-    pub const RECEIVING: Self = Self {label: "receiving", reverse_label: "pointing"};
-    pub const LINKED: Self = Self {label: "linked", reverse_label: "linked"};
+    pub const CHILDREN: Self = Self {label: Cow::Borrowed("children"), reverse_label: Cow::Borrowed("parents")};
+    pub const PARENTS: Self = Self {label: Cow::Borrowed("parents"), reverse_label: Cow::Borrowed("children")};
+    pub const POINTING: Self = Self {label: Cow::Borrowed("pointing"), reverse_label: Cow::Borrowed("receiving")};
+    pub const RECEIVING: Self = Self {label: Cow::Borrowed("receiving"), reverse_label: Cow::Borrowed("pointing")};
+    pub const LINKED: Self = Self {label: Cow::Borrowed("linked"), reverse_label: Cow::Borrowed("linked")};
 
     /// Creates a new arrow with a label and the inverse of that label (the label of the arrow going the other direction). 
-    pub fn new(label: &'static str, reverse_label: &'static str) -> Self {Self {label, reverse_label}}
+    pub fn new(label: impl Into<Cow<'static, str>>, reverse_label: impl Into<Cow<'static, str>>) -> Self {
+        Self {label: label.into(), reverse_label: reverse_label.into()}
+    }
 
     /// Returns the reversed version of the arrow called on; i.e., the arrow that the node's neighbor would have if the arrow points to it.
-    pub fn reverse(&self) -> Arrow {Self {label: self.reverse_label, reverse_label: self.label}}
+    pub fn reverse(&self) -> Arrow {
+        Self {label: self.reverse_label.clone(), reverse_label: self.label.clone()}
+    }
 }
 
 /// The core of Deebee. Stores a data of type Value as well as nodes it links to (bidirectional).
@@ -94,44 +99,5 @@ impl<'a> IntoIterator for &'a Node {
 
     fn into_iter(self) -> Self::IntoIter {
         Box::new(self.linked.iter().flat_map(|(arrow, id_list)| id_list.iter().map(move |id| (arrow, id))))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_arrow_reverse() {
-        let custom_arrow = Arrow::new("likes", "liked_by");
-        let reversed = custom_arrow.reverse();
-        
-        assert_eq!(reversed.label, "liked_by");
-        assert_eq!(reversed.reverse_label, "likes");
-        assert_eq!(reversed.reverse(), custom_arrow);
-        
-        // Test built-in arrows
-        assert_eq!(Arrow::CHILDREN.reverse(), Arrow::PARENTS);
-        assert_eq!(Arrow::POINTING.reverse(), Arrow::RECEIVING);
-    }
-
-    #[test]
-    fn test_node_creation() {
-        let node = Node::new("test data");
-        assert_eq!(node.data, Value::Text("test data".to_string()));
-        assert!(node.is_empty());
-        assert_eq!(node.len(), 0);
-    }
-
-    #[test]
-    fn test_node_with_id_and_mutation() {
-        let id = Uuid::new_v4();
-        let mut node = Node::with_id(42, id);
-        
-        assert_eq!(node.id, id);
-        assert_eq!(node.data, Value::Int(42));
-        
-        node.set(true);
-        assert_eq!(node.data, Value::Bool(true));
     }
 }

@@ -1,4 +1,4 @@
-use deebee::{Graph, Node, Arrow}; // For nearly all use cases, this is all you will need!
+use deebee::{Graph, Node, Arrow, Value}; // For nearly all use cases, this is all you will need!
 
 #[test]
 fn test_basic() {
@@ -13,11 +13,11 @@ fn test_basic() {
     let b_id = graph.add(vec!["Magic", "From", "Trait", "Impls"]).id; // If you're lazy.
 
     // Arrow offers 5 connection constants by default: `children` and its reverse `parents`, `receiving` and its reverse `pointing`, and `linked`, which goes both ways.
-    graph.connect(a_id, b_id, Arrow::CHILDREN).unwrap(); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
+    graph.connect(a_id, b_id, &Arrow::CHILDREN).unwrap(); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
 
-    println!("{}", graph.get(a_id).unwrap());
+    assert_eq!(Value::Text("data".to_string()), graph.get(a_id).unwrap().data);
 
-    println!("{}", graph.find("data").next().unwrap());
+    assert_eq!(Value::Text("data".to_string()), graph.find("data").next().unwrap().data);
 
-    println!("{:?} hhhah", graph.traverse(a_id).collect::<Vec<_>>())
+    assert_eq!(vec![a_id, b_id], graph.traverse(a_id).collect::<Vec<_>>())
 }
