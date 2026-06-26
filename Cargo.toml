@@ -1,6 +1,6 @@
 [package]
 name = "deebee"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 authors = ["exopto"]
 description = "A lightweight graph database built on a philosophy of simplicity, flexibility, and sugar."
@@ -9,7 +9,7 @@ readme = "README.md"
 license = "MIT"
 keywords = ["graph", "database"]
 categories = ["database-implementations", "data-structures"]
-rust-version = "1.88"
+rust-version = "1.95.0"
 
 [dependencies]
 uuid = { version = "1.23.1", features = ["v4"] }

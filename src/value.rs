@@ -2,6 +2,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use crate::{DeebeeError, DeebeeError::*};
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     Null,
@@ -31,8 +33,6 @@ impl<T: Into<Value>> From<HashMap<String, T>> for Value {
 }
 
 impl Value {
-    const DESERIALIZE_ERR: &str = "Could not deserialize object (Invalid JSON).";
-
     /// Serializes Value into a JSON-compliant string that can be inserted into the value of a JSON object. Note that the process is not lossless as NaN and Infinity will be converted to null.
     pub fn serialize(&self) -> String {
         match &self {
@@ -77,42 +77,40 @@ impl Value {
 
     /// Deserializes JSON object (in the form of a String) to a Value object, returining Err in case of invalid JSON.
     /// This process is lossy, as numbers that do not fit into an i64 or f64 will be truncated.
-    pub fn deserialize(obj: &str) -> Result<Self, &'static str> {
+    pub fn deserialize(obj: &str) -> Result<Self, DeebeeError> {
         match obj {
             "null" => Ok(Value::Null),
             "true" => Ok(Value::Bool(true)),
             "false" => Ok(Value::Bool(false)),
-            _ if obj.starts_with('"') && obj.ends_with('"') => {
-                let data = obj.strip_prefix('"').and_then(|s| s.strip_suffix('"')).ok_or(Self::DESERIALIZE_ERR)?;
+            _ if let Some(data) = obj.strip_prefix('"').and_then(|s| s.strip_suffix('"')) => {
                 Ok(Value::Text(Self::unescape(data)?))
             },
-            _ if obj.starts_with('[') && obj.ends_with(']') => {
-                let data = obj.strip_prefix('[').and_then(|s| s.strip_suffix(']')).ok_or(Self::DESERIALIZE_ERR)?;
+            _ if let Some(data) = obj.strip_prefix('[').and_then(|s| s.strip_suffix(']')) => {
                 Ok(Value::List(Self::parse_collection(data)?.into_iter().map(|(_, v)| v).collect::<Vec<Value>>()))
             },
-            _ if obj.starts_with('{') && obj.ends_with('}') => {
-                let data = obj.strip_prefix('{').and_then(|s| s.strip_suffix('}')).ok_or(Self::DESERIALIZE_ERR)?;
+            _ if let Some(data) =  obj.strip_prefix('{').and_then(|s| s.strip_suffix('}')) => {
                 Ok(Value::Map(Self::parse_collection(data)?.into_iter().collect::<HashMap<String, Value>>()))
             }
             _ if obj.contains(".") => {
-                let data = obj.parse::<f64>().map_err(|_| Self::DESERIALIZE_ERR)?;
+                let data = obj.parse::<f64>().map_err(|_| InvalidJson("Could not parse JSON value (expected f64). Maybe you forgot quotes?".to_string()))?;
                 Ok(Value::Float(data))
             }
             _ => {
-                let data = obj.parse::<i64>().map_err(|_| Self::DESERIALIZE_ERR)?;
+                let data = obj.parse::<i64>().map_err(|_| InvalidJson("Could not parse JSON value (expected i64). Maybe you forgot quotes?".to_string()))?;
                 Ok(Value::Int(data))
             }
         }
 
     }
 
-    pub(crate) fn unescape(data: &str) -> Result<String, &'static str> {
+    pub(crate) fn unescape(data: &str) -> Result<String, DeebeeError> {
         let mut data_string = String::with_capacity(data.len());
 
         let mut char_iter = data.chars();
         while let Some(char) = char_iter.next() {
             if char == '\\' {
-                let next_char = char_iter.next().ok_or(Self::DESERIALIZE_ERR)?;
+                let next_char = char_iter.next()
+                    .ok_or_else(|| InvalidJson("Could not parse JSON string. Backslash does not have an escaped character following it.".to_string()))?;
 
                 match next_char {
                     'n' => data_string.push('\n'),
@@ -121,13 +119,16 @@ impl Value {
                     '\\' => data_string.push('\\'),
                     '"' => data_string.push('"'),
                     'u' => {
-                        let hex_str: String = (0..4).map(|_| char_iter.next().ok_or(Self::DESERIALIZE_ERR))
+                        let hex_str: String = (0..4).map(|_| char_iter.next()
+                            .ok_or_else(|| InvalidJson("Could not parse JSON string. /u bytes are cut off before completion.".to_string())))
                             .collect::<Result<String, _>>()?; // Collecting into Result short-circuits on Err
-                        let hex = u32::from_str_radix(&hex_str, 16).map_err(|_| Self::DESERIALIZE_ERR)?;
+                        let hex = u32::from_str_radix(&hex_str, 16)
+                            .map_err(|_| InvalidJson("Could not parse JSON string. /u bytes are not valid hex strings.".to_string()))?;
             
-                        data_string.push(char::from_u32(hex).ok_or(Self::DESERIALIZE_ERR)?);
+                        data_string.push(char::from_u32(hex)
+                        .ok_or_else(|| InvalidJson("Could not parse JSON string. /u hex string is not valid Unicode.".to_string()))?);
                     },
-                    _ => Err(Self::DESERIALIZE_ERR)?
+                    _ => return Err(InvalidJson("Could not parse JSON string. Character after backslash is not a valid escape code.".to_string())),
                 };
             } else {
                 data_string.push(char);
@@ -137,7 +138,7 @@ impl Value {
         Ok(data_string)
     }
 
-   pub(crate) fn parse_collection(data: &str) -> Result<Vec<(String, Value)>, &'static str> {
+    pub(crate) fn parse_collection(data: &str) -> Result<Vec<(String, Value)>, DeebeeError> {
         let (mut brackets, mut braces, mut quotes) = (0, 0, 0);
         let mut data_chars = data.chars();
 
@@ -155,7 +156,7 @@ impl Value {
                 '"' => {quotes -= 1;}
                 '\\' => {
                     current_data.push(char);
-                    current_data.push(data_chars.next().ok_or(Self::DESERIALIZE_ERR)?);
+                    data_chars.next().map(|next_char| current_data.push(next_char)); 
                     continue; 
                 }
                 ',' if brackets == 0 && braces == 0 && quotes == 0 => {

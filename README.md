@@ -1,9 +1,9 @@
 # Deebee: Modeling Relationships with Swag
-A super tiny graph database built on a philosophy of simplicity, flexibility, and sugar. It is written in Rust for speed, stability, and idiomatic design, although the API is streamlined greatly for use in other languages, such as Python. Deebee does not have a query language by design, rather the programming language itself fills that gap with each method made to read like standard English. It is written in 598 lines of easy-to-understand code (for "clean design", AKA so that I don't pass out with proc macros before I even finish the Book), including whitespace but excluding tests, and about 250 of that is just serialization and deserialization. Built with good principles in mind, and should not ever panic unless something is really really wrong, and if so, please report to the repo no matter what, even if you've never written a GitHub issue ever before.
+A super tiny graph database built on a philosophy of simplicity, flexibility, and sugar. It is written in Rust for speed, stability, and idiomatic design, although the API is streamlined greatly for use in other languages, such as Python. Deebee does not have a query language by design, rather the programming language itself fills that gap with each method made to read like standard English. It is written in 630 lines of easy-to-understand code (including whitespace but excluding tests, only 511 without whitespace), hosting a completely hand-rolled custom serializer and deserializer. From the beginning, Deebee was built with good principles in mind with a verbose but clean codebase (so that I don't pass out with proc macros before I even finish the Book), and should not ever panic unless something is really really wrong. In the off chance that it does panic, please report an issue to the GitHub repo, regardless of if you've ever used GitHub before.
 
 Deebee consists of only four primitives: the Graph, storing nodes, the Node, storing values and connecting to other nodes, the Arrow, the connection to the other nodes, and the Value, dynamic data stored by the Node. Each primitive only knows about the other primitives lower on the hierarchy than it; e.g., the Graph knows about the Node, Arrow, and Value, being at the very top, while the Arrow knows only about the Node and Value, being on the same level as the Node and above the Value.
 
-You are reading the documentation and README for Deebee v0.2.0.
+You are reading the documentation and README for Deebee v0.3.0.
 
 [Repo](https://github.com/exopto/deebee) | [Crate](https://crates.io/crates/deebee) | [Docs](https://docs.rs/deebee) | [Blog](https://dev.to/exopto)
 
@@ -15,7 +15,7 @@ cargo add deebee
 ```
 
 ## Examples
-This is a crude example to set the stage, and does not showcase anywhere near all of Deebee's features. More comprehensive examples and documentation are coming soon, but for now, you can take a look at tests in the `tests` directory or `src/lib.rs`, although please note that all tests are AI-generated and not thoroughly reviewed. For more information about AI usage, see the disclosure at the bottom of this document.
+This is a crude example to set the stage, and does not showcase anywhere near all of Deebee's features. More comprehensive examples and documentation are coming soon, but for now, you can take a look at tests in the `tests` directory or `src/lib.rs`, although please note that (almost) all tests are AI-generated and not thoroughly reviewed. For more information about AI usage, see the disclosure at the bottom of this document.
 
 ```rust
 use deebee::{Graph, Node, Arrow}; // For nearly all use cases, this is all you will need!
@@ -32,20 +32,19 @@ fn main() {
     let b_id = graph.add(vec!["Magic", "From", "Trait", "Impls"]).id; // If you're lazy.
 
     // Arrow offers 5 connection constants by default: `children` and its reverse `parents`, `receiving` and its reverse `pointing`, and `linked`, which goes both ways.
-    graph.connect(a_id, b_id, Arrow::CHILDREN); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
-    
+    graph.connect(a_id, b_id, &Arrow::CHILDREN); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
 }
 ```
 
 ## Roadmap
-- Clean API code further for idiomaticity and remove usage of recursion
-- Add Serde as an optional feature for performance while keeping crude default serializers (although these serializers will be less crude once I write to a buffer instead).
-- Possibly add more helper methods such as allowing easier operation and iteration through nodes directly rather than IDs, allowing for a more consistent iteration API, such as a `traverse_ids`, `traverse_arrows`, `neighbor_nodes`, etc.
-- Write docs for the internal modules and overhaul the function-level doc comments to include more examples and descriptions of behavior.
-- Create a Python wrapper using PyO3 and publish to PyPI
-- Create a JS wrapper using `wasm-pack` and publish to NPM
-- Rewrite deserialization to be less clunky
-- Optimize code further, avoiding unnecessary heap allocations and introducing `unsafe` if needed.
+Version numbers are an estimate and subject to change.
+
+- Create a Python wrapper using PyO3 and publish to PyPI (v0.3.0)
+- Rewrite deserialization to be one-pass and strictly O(n) (v0.3.1)
+- Write docs for the internal modules and overhaul the function-level doc comments to include more examples and descriptions of behavior. (v0.3.1)
+- Add Serde as an optional feature for performance while keeping hand-rolled default serializers (v0.4.0)
+- Clean and optimize API code further for idiomaticity and remove usage of recursion (v0.4.0)
+- Create a JS wrapper using `wasm-pack` and publish to NPM (v0.5.0)
 
 ## Disclosure
 While AI was used in the development of Deebee for work such as code formatting, bugfixing, and testing, all design decisions were made by a real human and any sections of the code generated by AI have been thoroughly reviewed and understood (except for tests, which are considered disposable and partially regenerated each release anyways). This document itself is completely human-generated (unless you count spellcheck). Please clap.

@@ -58,11 +58,11 @@ impl Node {
     pub fn set(&mut self, data: impl Into<Value>) {self.data = data.into()}
 
     /// Gets all nodes of a specific arrow type linked to the node.
-    pub fn get(&self, arrow: Arrow) -> Option<&HashSet<Uuid>> {self.linked.get(&arrow)}
+    pub fn get(&self, arrow: &Arrow) -> Option<&HashSet<Uuid>> {self.linked.get(arrow)}
 
     /// Checks if the current node contains the ID of another node.
-    pub fn contains(&self, id: Uuid, arrow: Arrow) -> bool {
-        self.linked.get(&arrow).is_some_and(|nodes| nodes.contains(&id))
+    pub fn contains(&self, id: Uuid, arrow: &Arrow) -> bool {
+        self.linked.get(arrow).is_some_and(|nodes| nodes.contains(&id))
     }
 
     /// Iterates through all the arrow types of the linked nodes, with a reference to all node IDs of each arrow. Does not expose the Nodes themselves.
@@ -80,10 +80,10 @@ impl Node {
     pub fn is_empty(&self) -> bool {self.linked.is_empty()}
 }
 
-impl Index<Arrow> for Node {
+impl Index<&Arrow> for Node {
     type Output = HashSet<Uuid>;
-    fn index(&self, arrow: Arrow) -> &Self::Output {
-        &self.linked[&arrow]
+    fn index(&self, arrow: &Arrow) -> &Self::Output {
+        &self.linked[arrow]
     }
 }
 

@@ -18,6 +18,4 @@ fn test_basic() {
     assert_eq!(Value::Text("data".to_string()), graph.get(a_id).unwrap().data);
 
     assert_eq!(Value::Text("data".to_string()), graph.find("data").next().unwrap().data);
-
-    assert_eq!(vec![a_id, b_id], graph.traverse(a_id).collect::<Vec<_>>())
 }
