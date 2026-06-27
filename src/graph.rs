@@ -149,14 +149,9 @@ impl Graph {
     /// Deletes the node ID from the graph, deleting all direct connections without deleting any connected nodes.
     pub fn remove(&mut self, id: Uuid) -> Result<(), DeebeeError> {
         let node = self.nodes.remove(&id).ok_or_else(|| NodeNotFound(id))?;
-        for (arrow, neighbors) in node.linked {
-            for neighbor_id in neighbors {
-                if let Some(neighbor_node) = self.nodes.get_mut(&neighbor_id) {
-                    if let Some(back_links) = neighbor_node.linked.get_mut(&arrow.reverse()) {
-                        back_links.remove(&id);
-                    }
-                }
-            }
+        for (arrow, neighbor) in node.iter() {
+            let neighbor = self.nodes.get_mut(neighbor).expect(Self::BIDIRECTION_ERR);
+            neighbor.linked.get_mut(&arrow.reverse()).expect(Self::BIDIRECTION_ERR).remove(&id);
         }
         Ok(())
     }
