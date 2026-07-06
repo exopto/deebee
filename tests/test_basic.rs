@@ -15,6 +15,11 @@ fn test_basic() {
     // Arrow offers 5 connection constants by default: `children` and its reverse `parents`, `receiving` and its reverse `pointing`, and `linked`, which goes both ways.
     graph.connect(a_id, b_id, &Arrow::CHILDREN).unwrap(); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
 
+
+    if let Some(a) = graph.get_mut(a_id) {
+        a.set("daddy")
+    }
+    
     assert_eq!(Value::Text("data".to_string()), graph.get(a_id).unwrap().data);
 
     assert_eq!(Value::Text("data".to_string()), graph.find("data").next().unwrap().data);

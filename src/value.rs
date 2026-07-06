@@ -1,4 +1,4 @@
-/// The world's smallest JSON serializer and deserializer, built for Deebee. It is cheap, quick, and has questionable quality, just like Temu!
+//! The world's smallest JSON serializer and deserializer, built for Deebee. It is cheap, quick, and has questionable quality, just like Temu!
 use std::collections::HashMap;
 use std::fmt;
 

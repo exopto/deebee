@@ -46,13 +46,7 @@ impl Node {
     }
 
     /// Creates a new node with arbitrary data that will automatically be converted to Value and a custom UUID.
-    pub fn with_id(data: impl Into<Value>, id: Uuid) -> Self {
-        Node {
-            id,
-            data: data.into(),
-            linked: HashMap::new(),
-        }
-    }
+    pub fn with_id(data: impl Into<Value>, id: Uuid) -> Self {Node {id, data: data.into(), linked: HashMap::new()}}
 
     /// Sets arbitrary data of the node that will automatically be converted to Value.
     pub fn set(&mut self, data: impl Into<Value>) {self.data = data.into()}

@@ -10,8 +10,11 @@ pub mod graph;
 pub use graph::Graph;
 
 #[derive(Debug, PartialEq, Clone)]
+/// Deebee's error enum. Serves as the `Err` variant for whenever any function or method in the library returns a result. See documentation for the variants below.
 pub enum DeebeeError {
-    NodeNotFound(uuid::Uuid), InvalidJson(String), InvalidCreation(String),
+    #[doc = include_str!("../docs/lib/nodenotfound.md")] NodeNotFound(uuid::Uuid),
+    #[doc = include_str!("../docs/lib/invalidjson.md")] InvalidJson(String),
+    #[doc = include_str!("../docs/lib/invalidcreation.md")] InvalidCreation(String),
 }
 
 impl std::fmt::Display for DeebeeError {
