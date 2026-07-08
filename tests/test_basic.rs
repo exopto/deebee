@@ -20,7 +20,7 @@ fn test_basic() {
         a.set("daddy")
     }
     
-    assert_eq!(Value::Text("data".to_string()), graph.get(a_id).unwrap().data);
+    assert_eq!(Value::Text("daddy".to_string()), graph.get(a_id).unwrap().data);
 
-    assert_eq!(Value::Text("data".to_string()), graph.find("data").next().unwrap().data);
+    assert_eq!(Value::Text("daddy".to_string()), graph.find("daddy").next().unwrap().data);
 }

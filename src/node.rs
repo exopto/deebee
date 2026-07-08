@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
-use std::ops::Index;
-use std::fmt;
-use std::borrow::Cow;
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Index,
+    fmt,
+    borrow::Cow
+};
 
 use crate::Value;
 use uuid::Uuid;

@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}};
+use std::{collections::{HashMap, HashSet}, str::FromStr};
 use uuid::Uuid;
-use crate::{Node, Value, Arrow, DeebeeError, DeebeeError::*};
-use std::str::FromStr;
+
+use crate::{Arrow, DeebeeError::{self, *}, Node, Value};
 
 pub struct Graph {
     nodes: HashMap<Uuid, Node>
