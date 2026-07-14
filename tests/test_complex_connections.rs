@@ -17,9 +17,9 @@ fn test_social_network_scenario() {
     bob_data.insert("name".to_string(), Value::from("Bob"));
     bob_data.insert("age".to_string(), Value::from(32));
 
-    let alice_id = db.add(alice_data).id;
-    let bob_id = db.add(bob_data).id;
-    let charlie_id = db.add("Charlie (Minimal Profile)").id;
+    let alice_id = db.add(alice_data);
+    let bob_id = db.add(bob_data);
+    let charlie_id = db.add("Charlie (Minimal Profile)");
 
     // 3. Form connections
     db.connect(alice_id, bob_id, &follows).unwrap();

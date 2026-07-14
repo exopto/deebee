@@ -10,9 +10,10 @@ use uuid::Uuid;
 
 /// A thin wrapper type, connecting nodes bidirectionally with a label and acting as the key to access node neighbors.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Arrow {
-    pub(crate) label: Cow<'static, str>,
-    pub(crate) reverse_label: Cow<'static, str>,
+    pub label: Cow<'static, str>,
+    pub reverse_label: Cow<'static, str>,
 }
 
 impl Arrow {
@@ -35,6 +36,7 @@ impl Arrow {
 
 /// The core of Deebee. Stores a data of type Value as well as nodes it links to (bidirectional).
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Node {
     pub id: Uuid,
     pub data: Value,

@@ -2,9 +2,27 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::{DeebeeError, DeebeeError::*};
+#[derive(Debug, PartialEq, Clone)]
+/// DeeJSON's error enum. Serves as the `Err` variant for whenever any function or method in the library returns a result.
+pub enum JsonParseError {
+    UnescapeError(String, String),
+    InvalidObject(String, String),
+}
+
+impl std::fmt::Display for JsonParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnescapeError(val, msg) => write!(f, "Could not unescape JSON string \"{val}\": {msg}"),
+            Self::InvalidObject(val, msg) => write!(f, "Could not parse JSON object \"{val}\": {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for JsonParseError {}
+
 
 #[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Value {
     Null,
     Bool(bool),
@@ -53,7 +71,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn escape(data: &str) -> String {
+    pub fn escape(data: &str) -> String {
         let mut data_string = String::with_capacity(data.len() + 2);
         data_string.push('"');
 
@@ -77,7 +95,7 @@ impl Value {
 
     /// Deserializes JSON object (in the form of a String) to a Value object, returining Err in case of invalid JSON.
     /// This process is lossy, as numbers that do not fit into an i64 or f64 will be truncated.
-    pub fn deserialize(obj: &str) -> Result<Self, DeebeeError> {
+    pub fn deserialize(obj: &str) -> Result<Self, JsonParseError> {
         match obj {
             "null" => Ok(Value::Null),
             "true" => Ok(Value::Bool(true)),
@@ -90,27 +108,34 @@ impl Value {
             },
             _ if let Some(data) =  obj.strip_prefix('{').and_then(|s| s.strip_suffix('}')) => {
                 Ok(Value::Map(Self::parse_collection(data)?.into_iter().collect::<HashMap<String, Value>>()))
-            }
-            _ if obj.contains(".") => {
-                let data = obj.parse::<f64>().map_err(|_| InvalidJson("Could not parse JSON value (expected f64). Maybe you forgot quotes?".to_string()))?;
+            },
+            _ if obj.contains(".") || obj.to_ascii_lowercase().contains("e") => {
+                let data = obj.parse::<f64>().map_err(|_| JsonParseError::InvalidObject(obj.into(), "Expected f64. Maybe you forgot quotes?".into()))?;
                 Ok(Value::Float(data))
-            }
+            },
             _ => {
-                let data = obj.parse::<i64>().map_err(|_| InvalidJson("Could not parse JSON value (expected i64). Maybe you forgot quotes?".to_string()))?;
+                let data = match obj.parse::<i64>() {
+                    Ok(v) => Ok(v),
+                    Err(e) => match e.kind() {
+                        std::num::IntErrorKind::PosOverflow => Ok(i64::MAX),
+                        std::num::IntErrorKind::NegOverflow => Ok(i64::MIN),
+                        _ => Err(JsonParseError::InvalidObject(obj.into(), "Expected i64. Maybe you forgot delimiters?".into()))
+                    },
+                }?;
                 Ok(Value::Int(data))
             }
         }
 
     }
 
-    pub(crate) fn unescape(data: &str) -> Result<String, DeebeeError> {
+    pub fn unescape(data: &str) -> Result<String, JsonParseError> {
         let mut data_string = String::with_capacity(data.len());
 
         let mut char_iter = data.chars();
         while let Some(char) = char_iter.next() {
             if char == '\\' {
                 let next_char = char_iter.next()
-                    .ok_or_else(|| InvalidJson("Could not parse JSON string. Backslash does not have an escaped character following it.".to_string()))?;
+                    .ok_or_else(|| JsonParseError::UnescapeError(data.into(), "Backslash does not have an escaped character following it.".into()))?;
 
                 match next_char {
                     'n' => data_string.push('\n'),
@@ -120,15 +145,15 @@ impl Value {
                     '"' => data_string.push('"'),
                     'u' => {
                         let hex_str: String = (0..4).map(|_| char_iter.next()
-                            .ok_or_else(|| InvalidJson("Could not parse JSON string. /u bytes are cut off before completion.".to_string())))
+                            .ok_or_else(|| JsonParseError::UnescapeError(data.into(), "/u bytes are cut off before completion.".into())))
                             .collect::<Result<String, _>>()?; // Collecting into Result short-circuits on Err
                         let hex = u32::from_str_radix(&hex_str, 16)
-                            .map_err(|_| InvalidJson("Could not parse JSON string. /u bytes are not valid hex strings.".to_string()))?;
+                            .map_err(|_| JsonParseError::UnescapeError(data.into(), "/u bytes are not valid hex strings.".into()))?;
             
                         data_string.push(char::from_u32(hex)
-                        .ok_or_else(|| InvalidJson("Could not parse JSON string. /u hex string is not valid Unicode.".to_string()))?);
+                        .ok_or_else(|| JsonParseError::UnescapeError(data.into(), "/u hex string is not valid Unicode.".into()))?);
                     },
-                    _ => return Err(InvalidJson("Could not parse JSON string. Character after backslash is not a valid escape code.".to_string())),
+                    _ => return Err(JsonParseError::UnescapeError(data.into(), "Character after backslash is not a valid escape code.".into())),
                 };
             } else {
                 data_string.push(char);
@@ -138,7 +163,7 @@ impl Value {
         Ok(data_string)
     }
 
-    pub(crate) fn parse_collection(data: &str) -> Result<Vec<(String, Value)>, DeebeeError> {
+    pub fn parse_collection(data: &str) -> Result<Vec<(String, Value)>, JsonParseError> {
         let (mut brackets, mut braces, mut quotes) = (0, 0, 0);
         let mut data_chars = data.chars();
 
@@ -200,4 +225,60 @@ impl fmt::Display for Value {
             Value::Map(data) => write!(f, "{data:?}"),
         }
     }
+}
+
+
+// Value tests
+#[test]
+fn test_value_from_conversions() {
+    assert_eq!(Value::from(()), Value::Null);
+    assert_eq!(Value::from(true), Value::Bool(true));
+    assert_eq!(Value::from(42), Value::Int(42));
+    assert_eq!(Value::from(3.14), Value::Float(3.14));
+    assert_eq!(Value::from("hello"), Value::Text("hello".to_string()));
+
+    let vec_val: Value = vec![1, 2, 3].into();
+    assert_eq!(vec_val, Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]));
+}
+
+#[test]
+fn test_serialization_primitives() {
+    assert_eq!(Value::Null.serialize(), "null");
+    assert_eq!(Value::Bool(true).serialize(), "true");
+    assert_eq!(Value::Int(-100).serialize(), "-100");
+    assert_eq!(Value::Float(0.5).serialize(), "0.5");
+    assert_eq!(Value::Float(f64::NAN).serialize(), "null");
+}
+
+#[test]
+fn test_escaping_and_unescaping() {
+    let original = "Line1\nLine2\t\"Quotes\"\\Slash";
+    let escaped = Value::escape(original);
+    assert_eq!(escaped, r#""Line1\nLine2\t\"Quotes\"\\Slash""#);
+
+    // Strip the outer quotes for unescape testing as `deserialize` handles the outer quotes
+    let unescaped = Value::unescape(&escaped[1..escaped.len()-1]).unwrap();
+    assert_eq!(unescaped, original);
+}
+
+#[test]
+fn test_deserialization_success() {
+    assert_eq!(Value::deserialize("null").unwrap(), Value::Null);
+    assert_eq!(Value::deserialize("false").unwrap(), Value::Bool(false));
+    assert_eq!(Value::deserialize("12345").unwrap(), Value::Int(12345));
+    assert_eq!(Value::deserialize("12.34").unwrap(), Value::Float(12.34));
+    assert_eq!(Value::deserialize(r#""hello""#).unwrap(), Value::Text("hello".to_string()));
+}
+
+#[test]
+fn test_roundtrip_complex_structures() {
+    let mut map = HashMap::new();
+    map.insert("key1".to_string(), Value::Text("value1".to_string()));
+    map.insert("key2".to_string(), Value::List(vec![Value::Int(1), Value::Null]));
+
+    let original_val = Value::Map(map);
+    let serialized = original_val.serialize();
+    let deserialized = Value::deserialize(&serialized).unwrap();
+
+    assert_eq!(original_val, deserialized);
 }

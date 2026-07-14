@@ -8,9 +8,9 @@ fn test_basic() {
     // (), bool, i64, u32. i32, isize, f64, f32, &str, String, Vec<Into<Value>>, or HashMap<String, Into<Value>>
     let a = Node::new("data");
 
-    let a_id = graph.insert(a).id; // Inserts `a` into the graph. Returns a reference.
+    let a_id = graph.insert(a); // Inserts `a` into the graph. Returns a reference.
 
-    let b_id = graph.add(vec!["Magic", "From", "Trait", "Impls"]).id; // If you're lazy.
+    let b_id = graph.add(vec!["Magic", "From", "Trait", "Impls"]); // If you're lazy.
 
     // Arrow offers 5 connection constants by default: `children` and its reverse `parents`, `receiving` and its reverse `pointing`, and `linked`, which goes both ways.
     graph.connect(a_id, b_id, &Arrow::CHILDREN).unwrap(); // All arrows are bidirectional, meaning b knows it is a parent of `a` after connection also.
