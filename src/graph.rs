@@ -8,7 +8,7 @@ pub struct Graph {
     nodes: HashMap<Uuid, Node>
 }
 
-// // // INITALIZATION // // //
+// // // INITIALIZATION // // //
 impl Graph {
     /// Creates a new empty graph.
     pub fn new() -> Self {Graph {nodes: HashMap::new()}}
@@ -22,6 +22,7 @@ impl Graph {
 // // // UTILIZATION // // //
 impl Graph {
     const BIDIRECTION_ERR: &str = "Bidirectional invariant malfunctioning. PLEASE report to the GitHub repo.";
+    type TraversalResult = Result<impl Iterator<Item = &Node>, DeebeeError>;
 
     /// Gets node by UUID.
     pub fn get(&self, id: Uuid) -> Option<&Node> {self.nodes.get(&id)}
@@ -29,8 +30,12 @@ impl Graph {
     /// Gets mutable node by UUID.
     pub fn get_mut(&mut self, id: Uuid) -> Option<&mut Node> {self.nodes.get_mut(&id)}
 
-    fn get_result(&self, id: Uuid) -> Result<&Node, DeebeeError> {self.nodes.get(&id).ok_or_else(|| NodeNotFound(id))}
-    fn get_mut_result(&mut self, id: Uuid) -> Result<&mut Node, DeebeeError> {self.nodes.get_mut(&id).ok_or_else(|| NodeNotFound(id))}
+    fn get_result(&self, id: Uuid) -> Result<&Node, DeebeeError> {
+        self.nodes.get(&id).ok_or_else(|| NodeNotFound(id))
+    }
+    fn get_mut_result(&mut self, id: Uuid) -> Result<&mut Node, DeebeeError> {
+        self.nodes.get_mut(&id).ok_or_else(|| NodeNotFound(id))
+    }
     fn get_panic(&self, id: Uuid) -> &Node {    
         self.nodes.get(&id).expect("Node retrieval failed for unknown reason. PLEASE report to the GitHub repo.")
     }
@@ -53,14 +58,14 @@ impl Graph {
         self.nodes.values().filter(move |node| node.data == data)
     }
 
-    fn traverse_filtered(&self, starting_id: Uuid, filter: Option<&Arrow>) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    fn traverse_filtered(&self, starting_id: Uuid, filter: Option<&Arrow>) -> TraversalResult {
         let mut stack = vec![self.get_result(starting_id)?]; // Nodes to visit and track descendants
         let mut seen: HashSet<Uuid> = HashSet::from([starting_id]);
 
         Ok(std::iter::from_fn(move || {
             let node = stack.pop()?;
             for (arrow, id) in node {
-                if filter.map_or(true, |filtered_arrow| filtered_arrow == arrow) && seen.insert(*id) {                                                                                         
+                if filter.is_none_or(|filtered_arrow| filtered_arrow == arrow) && seen.insert(*id) {                                                                                         
                     stack.push(self.get_panic(*id));                                                                                                                                          
                 }  
             }
@@ -69,12 +74,12 @@ impl Graph {
     }
 
     /// Traverses through the graph starting from a given node, through all arrow types. Uses Depth-First Search.
-    pub fn traverse_all(&self, starting_id: Uuid) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    pub fn traverse_all(&self, starting_id: Uuid) -> TraversalResult {
         self.traverse_filtered(starting_id, None)
     }
 
     /// Traverses through the graph starting from a given node, through the specified arrow type. Uses Depth-First Search.
-    pub fn traverse(&self, starting_id: Uuid, arrow: &Arrow) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    pub fn traverse(&self, starting_id: Uuid, arrow: &Arrow) -> TraversalResult {
         self.traverse_filtered(starting_id, Some(&arrow))
     }
 
@@ -84,20 +89,20 @@ impl Graph {
     }
 
     /// Gets all neighbors of a given node, through the specified arrow type. If you only need IDs, use `Node.iter()` instead.
-    pub fn neighbors(&self, starting_id: Uuid, arrow: &Arrow) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    pub fn neighbors(&self, starting_id: Uuid, arrow: &Arrow) -> TraversalResult {
         Ok(self.get_result(starting_id)?.iter().filter_map(move |(neighbor_arr, id)| {
             (neighbor_arr == arrow).then(|| self.get_panic(*id))
         }))
     }
     
     /// Returns an iterator of all neighbors of the node through the specified arrrow type given where the value matches the Value given.
-    pub fn find_neighbors(&self, id: Uuid, data: impl Into<Value>, arrow: &Arrow) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    pub fn find_neighbors(&self, id: Uuid, data: impl Into<Value>, arrow: &Arrow) -> TraversalResult {
         let data = data.into();
         Ok(self.neighbors(id, arrow)?.filter(move |node| node.data == data))
     }
 
-    /// Returns an iterator of all descendants of the node through the specified arrrow type given where the value matches the Value given.
-    pub fn find_tree(&self, id: Uuid, data: impl Into<Value>, arrow: &Arrow) -> Result<impl Iterator<Item = &Node>, DeebeeError> {
+    /// Returns an iterator of all descendants of the node through the specified arrow type given where the value matches the Value given.
+    pub fn find_tree(&self, id: Uuid, data: impl Into<Value>, arrow: &Arrow) -> TraversalResult {
         let data = data.into();
         Ok(self.traverse(id, arrow)?.filter(move |node| node.data == data))
     }
@@ -113,7 +118,8 @@ impl Graph {
         id
     }
 
-    /// Inserts an already initialized node into the `Graph`. Unlike other methods, insert takes a full `Node` rather than a `Uuid`, but returns a `Uuid`
+    /// Inserts an already initialized node into the `Graph`.
+    /// Unlike other methods, insert takes a full `Node` rather than a `Uuid`, but returns a `Uuid`.
     pub fn insert(&mut self, node: Node) -> Uuid {
         let id = node.id;
         self.nodes.insert(id, node);
@@ -172,6 +178,7 @@ impl Graph {
     pub fn to_map(&self) -> &HashMap<Uuid, Node> {&self.nodes}
 
     /// Writes the graph in the format of a JSON string into a specified buffer.
+    #[cfg(feature = "deejson")]
     pub fn write_json(&self, w: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(w, "{{\n")?;
 
@@ -201,7 +208,8 @@ impl Graph {
         Ok(())
     }
 
-    /// Returns JSON-like String of all nodes in the graph. For greater performance, use `write_json` and pass your own buffer.
+    /// Returns JSON-like String of all nodes in the graph.
+    /// For greater performance, use `write_json` and pass your own buffer.
     pub fn to_json(&self) -> String {
         let mut writer = String::new();
         self.write_json(&mut writer).unwrap();
@@ -231,34 +239,44 @@ impl std::str::FromStr for Graph {
     type Err = DeebeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let string = s.strip_prefix('{').and_then(|s| s.strip_suffix('}')).ok_or_else(|| InvalidGraphFormat("JSON not an object at top-level.".to_string()))?;
+        let string = s.strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
+            .ok_or_else(|| InvalidJson("JSON not an object at top-level.".to_string()))?;
 
         let mut parsed: HashMap<Uuid, Node> = HashMap::new();
-        for (id_str, node) in Value::parse_collection(string).map_err(|msg| DeebeeError::DeserializeError(msg.to_string()))?.into_iter() {
+        for (id_str, node) in Value::parse_collection(string)?.into_iter() {
             let id = id_str.parse::<Uuid>()?;
 
             let Value::Map(mut node) = node else {
-                return Err(InvalidGraphFormat(format!("Node {id_str} data is not a JSON object (aka dictionary/HashMap).")));
+                return Err(InvalidCreation(format!("Node {id_str} data is not a JSON object (aka HashMap).")));
             };
 
-            let data = node.remove("data").ok_or_else(|| InvalidGraphFormat(format!("{id_str} does not have data.")))?;
+            let data = node.remove("data").ok_or_else(|| InvalidCreation(format!("{id_str} does not have data.")))?;
 
             let linked_nodes = node.remove("linked").unwrap_or_else(|| Value::List(vec![]));
-            let Value::List(linked_nodes) = linked_nodes else {return Err(InvalidGraphFormat(format!("Node {id_str}'s linked nodes is not an array.")))};
+            let Value::List(linked_nodes) = linked_nodes else {
+                return Err(InvalidCreation(format!("Node {id_str}'s linked nodes is not an array.")))
+            };
 
             let mut linked: HashMap<Arrow, HashSet<Uuid>> = HashMap::new();
 
             for arrow_val in linked_nodes {
-                let Value::Map(mut arrow) = arrow_val else {return Err(InvalidGraphFormat(format!("One of node {id_str}'s links is not a map.")))};
+                let Value::Map(mut arrow) = arrow_val else {
+                    return Err(InvalidCreation(format!("One of node {id_str}'s links is not a map.")))
+                };
 
-                let label = arrow.remove("label").ok_or_else(|| InvalidGraphFormat(format!("Node {id_str}'s linked nodes does not have a label.")))?;
-                let Value::Text(label) = label else {return Err(InvalidGraphFormat(format!("One of node {id_str}'s arrow labels is not text.")))};
+                // let label = arrow.remove("label")
+                //     .and_then(|| Err(InvalidCreation(format!("One of node {id_str}'s arrow labels is "))))
+                //     .ok_or_else(|| InvalidCreation(format!("Node {id_str}'s linked nodes does not have a label.")))?;
+                // let Value::Text(label) = label else {
+                //     return Err(InvalidCreation(format!("One of node {id_str}'s arrow labels is not text.")))
+                // };
 
-                let reverse = arrow.remove("reverse").ok_or_else(|| InvalidGraphFormat(format!("Node {id_str}'s linked nodes does not have a reverse label.")))?;
-                let Value::Text(reverse) = reverse else {return Err(InvalidGraphFormat(format!("One of node {id_str}'s arrow reverse labels is not text.")))};
+                let reverse = arrow.remove("reverse").ok_or_else(|| InvalidCreation(format!("Node {id_str}'s linked nodes does not have a reverse label.")))?;
+                let Value::Text(reverse) = reverse else {return Err(InvalidCreation(format!("One of node {id_str}'s arrow reverse labels is not text.")))};
 
                 let neighbors = arrow.remove("neighbors").unwrap_or_else(|| Value::List(vec![]));
-                let Value::List(neighbors) = neighbors else {return Err(InvalidGraphFormat(format!("Node {id_str}'s linked nodes is not an array.")))};
+                let Value::List(neighbors) = neighbors else {return Err(InvalidCreation(format!("Node {id_str}'s linked nodes is not an array.")))};
 
                 let key = Arrow::new(label, reverse);
                 let neighbor_set = neighbors.iter().filter_map(|n| if let Value::Text(s) = n { s.parse::<Uuid>().ok() } else { None }).collect::<HashSet<Uuid>>();
@@ -282,10 +300,10 @@ impl TryFrom<HashMap<Uuid, Node>> for Graph {
             for (arrow, linked) in node.iter() {
                 if seen.contains(&(*id, *linked, arrow.clone())) {continue}
 
-                let linked_node = value.get(linked).ok_or_else(|| InvalidGraphFormat(format!("Linked ID {linked} not in graph.")))?;
+                let linked_node = value.get(linked).ok_or_else(|| InvalidCreation(format!("Linked ID {linked} not in graph.")))?;
 
                 if !linked_node.linked.get(&arrow.reverse()).is_some_and(|nodes| nodes.contains(&id)) {
-                    return Err(InvalidGraphFormat(format!("Bidirectionality of arrows not enforced: {id} links with {} (reverse {}) to {linked}, \
+                    return Err(InvalidCreation(format!("Bidirectionality of arrows not enforced: {id} links with {} (reverse {}) to {linked}, \
                     but {linked} does not link to {id} through {}", arrow.label, arrow.reverse_label, arrow.reverse_label)));
                 }
                 seen.insert((*linked, *id, arrow.reverse()));

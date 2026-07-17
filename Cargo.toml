@@ -6,13 +6,15 @@ authors = ["exopto"]
 description = "A lightweight graph database built on a philosophy of simplicity, flexibility, and sugar."
 repository = "https://github.com/exopto/deebee"
 readme = "README.md"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 keywords = ["graph", "database"]
 categories = ["database-implementations", "data-structures"]
 rust-version = "1.95.0"
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"], optional = true }
+deejson = { path = "../deejson", optional = true }
+
 uuid = { version = "1.23.1", features = ["v4", "serde"] }
 
 [features]

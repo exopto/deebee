@@ -1,18 +1,18 @@
 # Deebee: Modeling Relationships with Swag
 Deebee is a lightweight graph database engine written in Rust, with a philosophy of simplicity, flexibility, and sugar. While it makes use of idiomatic Rust patterns, it sticks to the bare minimum so that you can focus on doing what you need to do. It inverts the traditional model of edges being the primary structure in a graph, each edge sort of owning or containing the nodes; rather, the graph owns the nodes directly, making it easier to reason about the graph, especially from those coming from tabular databases.
 
-By design, the library does not use or support a query language; rather, it is completely Rust-native and each method is made to read like standard English. It is written in 625 lines of verbose but relatively high-level Rust (including whitespace but excluding tests, only 514 without whitespace). In addition, its only required dependency is the `uuid` crate, with `serde` as a feature.
+By design, the library does not use or support a query language; rather, it is completely Rust-native and each method is made to read like standard English. It is written in under 700 lines of Rust. It should not panic unless something is really really wrong, and if it somehow does please report an issue to the GitHub repo, regardless of if you've ever used GitHub before.
+
+Its only required dependency is the `uuid` crate, with `serde` as a feature, and comes bundled with a hand-rolled serializer under the name `deejson` in the source code existing as a default feature.
 
 Deebee consists of only four primitives: the Graph, storing nodes, the Node, storing values and connecting to other nodes, the Arrow, the connection to the other nodes, and the Value, dynamic data stored by the Node. Each primitive only knows about the other primitives lower on the hierarchy than it; e.g., the Graph knows about the Node, Arrow, and Value, being at the very top, while the Arrow knows only about the Node and Value, being on the same level as the Node and above the Value.
 
-It should not panic unless something is really really wrong, and if it somehow does please report an issue to the GitHub repo, regardless of if you've ever used GitHub before. 
-
-You are reading the documentation and README for Deebee 2026.6.11, an in-progress release (see the [release schedule](#release-schedule)). For the most recent released version (v0.3.1) available on Cargo, please refer to [here](https://github.com/exopto/deebee/tree/v0.3.1).
+You are reading the documentation and README for Deebee 2026.6.16, a beta-like release (see the [release schedule](#release-schedule)). For the most recent released version (v0.3.1) available on Cargo, please refer to [here](https://github.com/exopto/deebee/tree/v0.3.1). This version of Deebee is licned under MIT OR Apache-2.0.
 
 [Repo](https://github.com/exopto/deebee) | [Crate](https://crates.io/crates/deebee) | [Docs](https://docs.rs/deebee) | [Book (unreleased)](https://exopto.github.io/deebee)
 
 ## Installation
-For now, Deebee only exists as a Rust crate (while v0.1.0 was written in Python, it has many known design issues and code smells), so the easiest way to get Deebee is to run `cargo add deebee` in your shell while inside your crate root, assuming you have Cargo and Rust installed of course. Troubleshooting on how to install Rust is left as an exercise to the reader.
+For now, Deebee only exists as a Rust crate, each stable release published to `crates.io`, so the easiest way to get the crate is to run `cargo add deebee` in your crate root, assuming Rust and Cargo are installed. As of 2026.6.16, Deebee has a minimum supported Rust version of 1.95. Troubleshooting on how to install Rust is left as an exercise to the reader.
 
 ```shell
 cargo add deebee
@@ -41,21 +41,22 @@ fn main() {
 ```
 
 ## Roadmap
-Version numbers are an estimate and subject to change.
+Order and version numbers are tentative and subject to change.
 
-- Increase robustness of hand-rolled parser, possibly rewriting from scratch (v0.4.0)
-- Write Deebee book to go more in detail on how (v0.4.0)
+- Increase robustness of hand-rolled parser, keeping track of state better and set a depth limit to avoid a stack overflow. (v0.4.0)
+- Write Deebee book to go more in detail on Deebee's philosophy and general usage, also including a changelog (v0.4.0)
 - Write docs for the internal modules and overhaul the function-level doc comments to include more examples and descriptions of behavior. (v0.4.0)
 - Continue simplifying and optimizing API, reducing boilerplate while taking note of how the library will be actually used (v0.4.0+)
 - Create a Python wrapper using PyO3 and publish to PyPI (v0.4.0+)
+- Look into slotmap or similar structures for the graph structure to avoid hashing overhead (v0.5.0+)
 - Create a JS wrapper using `wasm-pack` and publish to NPM (v0.5.0+)
 
 ## Release Schedule
-All commits are added on the `dev` branch, whether they compile or not, such that this branch reflects the current state of the project but often cannot be used in any way. Note that if you are reading this text on that branch, the versioning information above may be outdated or otherwise incorrect.
+All commits are available on the `dev` branch, whether they compile or not, such that this branch reflects the most current public state of the project, whether it is usable or not. If you are reading this text on `dev`, the information in this document above may be outdated or otherwise incorrect.
 
-Commits that pass the test suite, compile, and are not missing any crucial features will also be published to the `main` branch as a calendar-dated rolling release, though some aspects of the library (including the README and documentation) may not be fully fleshed out.
+Commits that pass the test suite, compile, and are not missing any crucial features will also be published to the `main` branch as a calendar-versioned beta release, though some aspects of the library (including the README and documentation) may not be fully fleshed out, and the API may change greatly with each commit.
 
 Commits where the API is stabilized and all planned changes for the cycle are done will also correspond to a git tag and version on crates.io.
 
 ## Disclosure
-While AI was used in the development of Deebee for work such as code formatting, bugfixing, and testing, all final design decisions were made by a real human and any sections of the code generated by AI have been thoroughly reviewed and understood (except for tests, which currently only act as a baseline to confirm the library at least is functional). This document itself is completely human-generated (unless you count spellcheck). Please clap.
+While generative AI was used in the development of Deebee for work such as code help, code formatting, bugfixing, and testing, all final design decisions were made by a real human and the few sections of code in `src` completely generated by an LLM have been thoroughly reviewed and understood. All documentation, including this document, have no LLM involvement except for high-level copyediting and review. The only unreviewed LLM output exists in the test suite, which currently serves as a baseline to ensure all functions do what they should on basic inputs though will be replaced by a more rigorous suite in a future release. Please clap.

@@ -10,7 +10,8 @@ pub mod graph;
 pub use graph::Graph;
 
 #[derive(Debug, PartialEq, Clone)]
-/// Deebee's error enum. Serves as the `Err` variant for whenever any function or method in the library returns a result. See documentation for the variants below.
+/// Deebee's error enum. Serves as the `Err` variant for whenever any function in the library returns a result.
+/// See documentation for the variants below.
 pub enum DeebeeError {
     #[doc = include_str!("../docs/lib/nodenotfound.md")] NodeNotFound(uuid::Uuid),
     #[doc = include_str!("../docs/lib/invalidjson.md")] DeserializeError(String),
@@ -21,7 +22,7 @@ impl std::fmt::Display for DeebeeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NodeNotFound(id) => write!(f, "Node ID {} not in graph.", id),
-            Self::DeserializeError(msg) => write!(f, "Graph cannot be deserialized. Deserializer noted \"{}\"", msg),
+            Self::DeserializeError(msg) => write!(f, "Graph cannot be deserialized. Deserializer returned error \"{}\"", msg),
             Self::InvalidGraphFormat(msg) => write!(f, "Graph format is invalid: {}", msg),
         }
     }
